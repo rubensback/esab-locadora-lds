@@ -1,0 +1,18 @@
+{
+  "extends": [
+    "@rocketseat/eslint-config/react",
+
+    "eslint:recommended",
+    "plugin:@typescript-eslint/eslint-recommended",
+    "plugin:@typescript-eslint/recommended"
+  ],
+  "rules": {
+    "react/self-closing-comp": [
+      "warn",
+      {
+        "component": true,
+        "html": false
+      }
+    ]
+  }
+}

@@ -19,7 +19,15 @@ import { useCallback, useEffect, useState } from 'react'
 import { Button } from '../../components/Button'
 import ReactDatePicker from 'react-datepicker'
 import { formattedPrice } from '../../utils'
-import { addDays, format, subDays } from 'date-fns'
+import {
+  addDays,
+  differenceInDays,
+  format,
+  startOfDay,
+  subDays,
+} from 'date-fns'
+import { api } from '../../api'
+import { toast } from 'react-toastify'
 
 interface CustomerProps {
   id: string
@@ -32,63 +40,36 @@ interface CustomerProps {
 interface MovieProps {
   id: string
   name: string
-  type: string
-  status: string
   days: number
   value: number
+  cost_by_day: number
+  movie_type_name: string
+  movie_status_name: string
 }
 
 interface EmployeeProps {
   id: string
   name: string
-  rental_amount: number
+  qty_rents: number
 }
 
 const rentMovieFormValidationSchema = zod.object({
   customer_id: zod.string().min(1),
   employee_id: zod.string().min(1),
   movie_id: zod.string().min(1),
-  date: zod.date(),
+  expire: zod.date(),
 })
 
 type rentTileFormData = zod.infer<typeof rentMovieFormValidationSchema>
 
-// request options
-
-const customerOptions: CustomerProps[] = [
-  { id: '1', name: 'Abel', phone: '1', discount: 12.6, fine: 0 },
-  { id: '2', name: 'Gustavo', phone: '', discount: 0, fine: 5.75 },
-]
-
-const movieOptions: MovieProps[] = [
-  {
-    id: '1',
-    name: 'Cabeça fria coração quente',
-    status: 'Disponivel',
-    type: 'Fita VHS',
-    days: 9,
-    value: 48,
-  },
-  {
-    id: '2',
-    name: 'Rei leão',
-    status: 'Alugado',
-    type: 'DVD',
-    days: 31,
-    value: 15,
-  },
-]
-
-const employeeOptions: EmployeeProps[] = [
-  { id: '1', name: 'Dudu', rental_amount: 20 },
-  { id: '2', name: 'Endrick', rental_amount: 2 },
-  { id: '3', name: 'Giovanni', rental_amount: 13 },
-]
-
 export const Rent = () => {
+  const [customerOptions, setCustomerOptions] = useState<CustomerProps[]>([])
+  const [movieOptions, setMovieOptions] = useState<MovieProps[]>([])
+  const [employeeOptions, setEmployeeOptions] = useState<EmployeeProps[]>([])
   const [customer, setCustomer] = useState<CustomerProps>({} as CustomerProps)
   const [movie, setMovie] = useState<MovieProps>({} as MovieProps)
   const [employee, setEmployee] = useState<EmployeeProps>({} as EmployeeProps)
+  const [triggerRequest, setTriggerRequest] = useState(false)
 
   const rentMovieForm = useForm<rentTileFormData>({
     resolver: zodResolver(rentMovieFormValidationSchema),
@@ -96,25 +77,49 @@ export const Rent = () => {
       customer_id: '',
       employee_id: '',
       movie_id: '',
-      date: new Date(),
+      expire: new Date(),
     },
   })
 
   const { register, handleSubmit, control, watch, reset } = rentMovieForm
 
-  const [customerId, movieId, employeeId, date] = watch([
+  const [customerId, movieId, employeeId, expire] = watch([
     'customer_id',
     'movie_id',
     'employee_id',
-    'date',
+    'expire',
   ])
 
+  useEffect(() => {
+    const loadOptions = async () => {
+      const {
+        data: { customers },
+      } = await api.get('/customers')
+      const {
+        data: { movies },
+      } = await api.get('/movies', { params: { status: '1' } })
+      const {
+        data: { employees },
+      } = await api.get('/employees')
+
+      setCustomerOptions(customers)
+      setMovieOptions(movies)
+      setEmployeeOptions(employees)
+    }
+
+    loadOptions()
+  }, [triggerRequest])
+
   const handleRent = useCallback(
-    (formValues: rentTileFormData) => {
+    async (formValues: rentTileFormData) => {
       try {
-        // request rent
-        console.log(formValues)
+        await api.post('/rents', formValues)
         reset()
+        setCustomer({} as CustomerProps)
+        setMovie({} as MovieProps)
+        setEmployee({} as EmployeeProps)
+        toast.success('Título alugado com sucesso!')
+        setTriggerRequest((state) => !state)
       } catch (error) {}
     },
     [reset],
@@ -127,20 +132,27 @@ export const Rent = () => {
   )
 
   useEffect(() => {
-    setCustomer(findItemById<CustomerProps>(customerOptions, customerId))
-  }, [findItemById, customerId])
+    if (customerId)
+      setCustomer(findItemById<CustomerProps>(customerOptions, customerId))
+  }, [findItemById, customerId, customerOptions])
 
   useEffect(() => {
-    setMovie(findItemById<MovieProps>(movieOptions, movieId))
-  }, [findItemById, movieId])
+    if (movieId) setMovie(findItemById<MovieProps>(movieOptions, movieId))
+  }, [findItemById, movieId, movieOptions])
 
   useEffect(() => {
-    setEmployee(findItemById<EmployeeProps>(employeeOptions, employeeId))
-  }, [findItemById, employeeId])
+    if (employeeId)
+      setEmployee(findItemById<EmployeeProps>(employeeOptions, employeeId))
+  }, [findItemById, employeeId, employeeOptions])
 
-  const finalValue = movie.value - customer.discount + customer.fine
-  const formattedDate = format(date, 'dd/MM/yyyy')
-  console.log(watch())
+  const rentalDays = differenceInDays(
+    startOfDay(expire),
+    startOfDay(new Date()),
+  )
+  const costForDays = movie.cost_by_day * (rentalDays || 0)
+  const fineAndDiscount = customer.fine - customer.discount
+  const finalValue = movie.value + fineAndDiscount + costForDays
+  const formattedDate = format(expire, 'dd/MM/yyyy')
 
   return (
     <RentContainer>
@@ -175,7 +187,7 @@ export const Rent = () => {
             <Calendar>
               <Controller
                 control={control}
-                name="date"
+                name="expire"
                 render={({ field: { onChange, onBlur, value } }) => (
                   <ReactDatePicker
                     onChange={onChange}
@@ -196,15 +208,23 @@ export const Rent = () => {
             {customerId && movieId && employeeId && (
               <ResultsInfo>
                 <Info>
-                  <h6>Subtotal:</h6>
+                  <h6>Título:</h6>
                   <p>{formattedPrice(movie.value)}</p>
                 </Info>
                 <Info>
-                  <h6>Total:</h6>
+                  <h6>Acrescimo por dias ({rentalDays}):</h6>
+                  <p>{formattedPrice(costForDays)}</p>
+                </Info>
+                <Info>
+                  <h6>Descontos - multas:</h6>
+                  <p>{formattedPrice(fineAndDiscount)}</p>
+                </Info>
+                <Info>
+                  <h5>Total:</h5>
                   <p>{formattedPrice(finalValue)}</p>
                 </Info>
                 <Info>
-                  <h6>Devolução:</h6>
+                  <h5>Devolução:</h5>
                   <p>{formattedDate}</p>
                 </Info>
               </ResultsInfo>
@@ -218,16 +238,16 @@ export const Rent = () => {
               <p>{movie.name}</p>
             </DetailsInfo>
             <DetailsInfo>
-              <h6>Disponibilidade:</h6>
+              <h6>Dias disponíveis:</h6>
               <p>{movie.days}</p>
             </DetailsInfo>
             <DetailsInfo>
               <h6>Tipo:</h6>
-              <p>{movie.type}</p>
+              <p>{movie.movie_type_name}</p>
             </DetailsInfo>
             <DetailsInfo>
               <h6>Status:</h6>
-              <p>{movie.status}</p>
+              <p>{movie.movie_status_name}</p>
             </DetailsInfo>
           </DetailsBox>
           <DetailsBox>
@@ -251,7 +271,7 @@ export const Rent = () => {
             </DetailsInfo>
             <DetailsInfo>
               <h6>Alugueis registrados:</h6>
-              <p>{employee.rental_amount}</p>
+              <p>{employee.qty_rents}</p>
             </DetailsInfo>
           </DetailsBox>
         </Details>

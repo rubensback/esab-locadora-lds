@@ -56,10 +56,16 @@ export const Info = styled.div`
   display: flex;
   align-items: center;
 
-  h6 {
-    font-size: 1.5rem;
+  h5 {
+    font-size: 1.25rem;
     font-weight: bold;
-    width: 9rem;
+    width: 12rem;
+  }
+
+  h6 {
+    font-size: 1rem;
+    font-weight: bold;
+    width: 12rem;
   }
 `
 

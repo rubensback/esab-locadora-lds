@@ -8,8 +8,8 @@ export interface Movie {
   name: string
   days: number
   value: number
-  type: string
-  status: string
+  movie_type_id: string
+  movie_status_id: string
 }
 
 export const formattedPrice = (price: number) =>

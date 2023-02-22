@@ -5,6 +5,8 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { TextInput } from '../../components/inputs/TextInput'
 import { Button } from '../../components/Button'
 import { useCallback } from 'react'
+import { api } from '../../api'
+import { toast } from 'react-toastify'
 
 const newCustomerValidationSchema = zod.object({
   name: zod.string().min(1),
@@ -25,10 +27,17 @@ export const Customer = () => {
   const { register, handleSubmit, reset } = newCustomerForm
 
   const handleCreateCustomer = useCallback(
-    (formValues: NewCustomerFormData) => {
+    async (formValues: NewCustomerFormData) => {
       try {
-        // create customer request
-        console.log(formValues)
+        const { name, phone } = formValues
+        await api.post('customers', {
+          name,
+          phone,
+          fine: 0,
+          discount: 0,
+        })
+
+        toast.success('Locador adicionado!')
         reset()
       } catch (error) {}
     },

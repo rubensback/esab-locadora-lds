@@ -16,25 +16,26 @@ import { Button } from '../../../components/Button'
 import { useCallback, useEffect, useState } from 'react'
 import { SearchedMovies } from '../SearchedMovies'
 import { IdAndName, Movie } from '../../../utils'
+import { api } from '../../../api'
+import { toast } from 'react-toastify'
 
-const findMovieFormValidationSchema = zod
-  .object({
-    name: zod.string(),
-    type: zod.string(),
-  })
-  .refine(({ name, type }) => !!name || !!type, {
-    message: 'Por favor escolha um um método de pesquisa',
-  })
+const findMovieFormValidationSchema = zod.object({
+  name: zod.string().optional(),
+  type: zod.string().optional(),
+  status: zod.string().optional(),
+})
 
 type FindMovieFormData = zod.infer<typeof findMovieFormValidationSchema>
 
 interface FindMovieProps {
   movieTypeOptions: IdAndName[]
+  movieStatusOptions: IdAndName[]
   selectMovie: (movie: Movie) => void
 }
 
 export const FindMovie = ({
   movieTypeOptions,
+  movieStatusOptions,
   selectMovie,
 }: FindMovieProps) => {
   const findMovieForm = useForm<FindMovieFormData>({
@@ -52,33 +53,23 @@ export const FindMovie = ({
 
   useEffect(() => {
     const error = Object.values(errors).find(({ message }) => message)
-    if (error) alert(error.message)
+    if (error) toast.error(error.message)
   }, [errors])
 
-  const handleSearch = useCallback((formValues: FindMovieFormData) => {
-    // request pesquisa
-    const movieOptions: Movie[] = [
-      {
-        id: '1',
-        name: 'Cabeça fria coração quente',
-        status: '1',
-        type: '1',
-        days: 9,
-        value: 48,
+  const handleSearch = useCallback(async (formValues: FindMovieFormData) => {
+    const { name, type, status } = formValues
+    const {
+      data: { movies: moviesOptions },
+    } = await api.get('/movies', {
+      params: {
+        name,
+        type,
+        status,
       },
-      {
-        id: '2',
-        name: 'Rei leão',
-        status: '2',
-        type: '2',
-        days: 31,
-        value: 15,
-      },
-    ]
+    })
 
-    setMovies(movieOptions)
-
-    console.log(formValues)
+    if (!moviesOptions?.length) toast.error('Não foram encontrados titulos.')
+    setMovies(moviesOptions)
   }, [])
 
   const handleCloseModal = useCallback(
@@ -118,6 +109,13 @@ export const FindMovie = ({
                   placeholder="Pesquisar por Tipo"
                   register={register('type')}
                   options={movieTypeOptions}
+                />
+                <SelectInput
+                  id="status"
+                  label="Status"
+                  placeholder="Pesquisar por Status"
+                  register={register('status')}
+                  options={movieStatusOptions}
                 />
               </InputsContainer>
               <ButtonContainer>

@@ -7,7 +7,7 @@ export const DropdownMenuContent = styled(DropdownMenu.Content)`
   background-color: ${(props) => props.theme['gray-700']};
   padding: 0.5rem;
   border-radius: 4px;
-  max-height: calc(100vh - 32rem);
+  max-height: calc(100vh - 37rem);
   overflow: auto;
 `
 
